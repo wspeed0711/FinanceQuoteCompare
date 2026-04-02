@@ -1,0 +1,5 @@
+{
+  "name": "Market Trends Comparison",
+  "description": "Compare S&P 500 and CSI 300 index performance since Jan 1, 2026.",
+  "requestFramePermissions": []
+}
