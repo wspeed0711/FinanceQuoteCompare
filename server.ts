@@ -3,6 +3,11 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import YahooFinance from 'yahoo-finance2';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import dns from 'node:dns';
+
+// Force Node.js to use IPv4 first for DNS resolution.
+// This fixes "fetch failed" errors on cloud platforms like Railway that have IPv6 routing issues.
+dns.setDefaultResultOrder('ipv4first');
 
 // Configure proxy if environment variables are present
 const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy;
@@ -121,13 +126,13 @@ async function startServer() {
             price: item.close
           })).filter((d: any) => d.price !== null && d.price !== undefined);
         } catch (error: any) {
-          console.error(`Yahoo API Error for ${ticker}:`, error.message);
+          console.error(`Yahoo API Error for ${ticker}:`, error.message, error.cause || '');
           throw error;
         }
       };
 
       const results = await Promise.all(symbolList.map(sym => fetchYahooData(sym).catch((e) => {
-        console.error(`Error fetching ${sym}:`, e.message);
+        console.error(`Error fetching ${sym}:`, e.message, e.cause || '');
         return [];
       })));
 
