@@ -1,24 +1,41 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import axios from "axios";
+import YahooFinance from 'yahoo-finance2';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
+// Configure proxy if environment variables are present
+const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy;
+let fetchOptions = {};
+
+if (proxyUrl) {
+  console.log(`Using proxy: ${proxyUrl}`);
+  const agent = new HttpsProxyAgent(proxyUrl);
+  fetchOptions = { agent };
+}
+
+const yahooFinance = new YahooFinance();
+
+// Apply proxy to yahoo-finance2 if configured
+if (proxyUrl) {
+  yahooFinance._opts.fetchOptions = fetchOptions;
+}
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   app.get("/api/search-symbol", async (req, res) => {
     try {
       const { q } = req.query;
       if (!q || typeof q !== 'string') return res.json([]);
-      const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`;
-      const response = await axios.get(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
+      
+      const results = await yahooFinance.search(q, {
+        quotesCount: 10,
+        newsCount: 0
       });
-      const quotes = response.data.quotes || [];
-      const results = quotes
+      
+      const formattedResults = (results.quotes || [])
         .filter((q: any) => ['EQUITY', 'INDEX', 'ETF', 'MUTUALFUND', 'CURRENCY', 'CRYPTOCURRENCY'].includes(q.quoteType))
         .map((q: any) => ({
           symbol: q.symbol,
@@ -26,7 +43,8 @@ async function startServer() {
           type: q.quoteType,
           exchange: q.exchange
         }));
-      res.json(results);
+        
+      res.json(formattedResults);
     } catch (error: any) {
       console.error("Search error:", error.message);
       res.status(500).json({ error: "Failed to search symbols" });
@@ -77,23 +95,25 @@ async function startServer() {
       }
 
       const fetchYahooData = async (ticker: string) => {
-        const url = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d`;
-        const response = await axios.get(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-          }
-        });
-        
-        const result = response.data?.chart?.result?.[0];
-        if (!result) return [];
+        try {
+          const queryOptions = {
+            period1: new Date(startTimestamp * 1000),
+            period2: new Date(endTimestamp * 1000),
+            interval: '1d' as const
+          };
+          
+          const result = await yahooFinance.chart(ticker, queryOptions);
+          
+          if (!result || !result.quotes || result.quotes.length === 0) return [];
 
-        const timestamps = result.timestamp || [];
-        const closePrices = result?.indicators?.quote?.[0]?.close || [];
-
-        return timestamps.map((t: number, i: number) => ({
-          date: new Date(t * 1000).toISOString().split('T')[0],
-          price: closePrices[i]
-        })).filter((d: any) => d.price !== null && d.price !== undefined);
+          return result.quotes.map((item: any) => ({
+            date: item.date.toISOString().split('T')[0],
+            price: item.close
+          })).filter((d: any) => d.price !== null && d.price !== undefined);
+        } catch (error: any) {
+          console.error(`Yahoo API Error for ${ticker}:`, error.message);
+          throw error;
+        }
       };
 
       const results = await Promise.all(symbolList.map(sym => fetchYahooData(sym).catch((e) => {

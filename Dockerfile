@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 # Set working directory
 WORKDIR /app
@@ -14,6 +14,9 @@ COPY . .
 
 # Build the Vite frontend
 RUN npm run build
+
+# Set environment to production
+ENV NODE_ENV=production
 
 # Expose the port the app runs on
 EXPOSE 3000
