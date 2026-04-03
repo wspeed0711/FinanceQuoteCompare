@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "start": "tsx server.ts"
+    "start": "NODE_ENV=production tsx server.ts"
   },
   "engines": {
     "node": ">=22.0.0"

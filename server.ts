@@ -9,9 +9,13 @@ const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.en
 let fetchOptions = {};
 
 if (proxyUrl) {
-  console.log(`Using proxy: ${proxyUrl}`);
-  const agent = new HttpsProxyAgent(proxyUrl);
-  fetchOptions = { agent };
+  try {
+    console.log(`Using proxy: ${proxyUrl}`);
+    const agent = new HttpsProxyAgent(proxyUrl);
+    fetchOptions = { agent };
+  } catch (e) {
+    console.error("Failed to setup proxy:", e);
+  }
 }
 
 const yahooFinance = new YahooFinance();
@@ -23,7 +27,13 @@ if (proxyUrl) {
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  // Railway provides PORT as a string, Express listen accepts string or number
+  const PORT = process.env.PORT || 3000;
+
+  // Health check endpoint for Railway
+  app.get("/health", (req, res) => {
+    res.status(200).send("OK");
+  });
 
   app.get("/api/search-symbol", async (req, res) => {
     try {
@@ -176,7 +186,9 @@ async function startServer() {
     }
   });
 
-  if (process.env.NODE_ENV !== "production") {
+  const isProd = process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
+
+  if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -191,7 +203,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT} (0.0.0.0)`);
+    console.log(`Server running on port ${PORT} (0.0.0.0) in ${isProd ? 'production' : 'development'} mode`);
   });
 }
 
