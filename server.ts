@@ -2,9 +2,9 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import YahooFinance from 'yahoo-finance2';
-import { HttpsProxyAgent } from 'https-proxy-agent';
 import dns from 'node:dns';
 import axios from 'axios';
+import { setGlobalDispatcher, EnvHttpProxyAgent } from 'undici';
 
 // Force Node.js to use IPv4 first for DNS resolution.
 // This fixes "fetch failed" errors on cloud platforms like Railway that have IPv6 routing issues.
@@ -12,24 +12,19 @@ dns.setDefaultResultOrder('ipv4first');
 
 // Configure proxy if environment variables are present
 const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy;
-let fetchOptions = {};
 
 if (proxyUrl) {
   try {
     console.log(`Using proxy: ${proxyUrl}`);
-    const agent = new HttpsProxyAgent(proxyUrl);
-    fetchOptions = { agent };
+    const envAgent = new EnvHttpProxyAgent();
+    setGlobalDispatcher(envAgent);
+    console.log("Successfully configured global proxy dispatcher for native fetch.");
   } catch (e) {
     console.error("Failed to setup proxy:", e);
   }
 }
 
 const yahooFinance = new YahooFinance();
-
-// Apply proxy to yahoo-finance2 if configured
-if (proxyUrl) {
-  yahooFinance._opts.fetchOptions = fetchOptions;
-}
 
 async function startServer() {
   const app = express();
@@ -142,20 +137,22 @@ async function startServer() {
           try {
             const dataUrl = `http://fund.eastmoney.com/pingzhongdata/${code}.js`;
             const dataRes = await axios.get(dataUrl);
-            const match = dataRes.data.match(/var Data_netWorthTrend = (\[.*?\]);/);
+            // Use Data_ACWorthTrend (累计净值) instead of Data_netWorthTrend (单位净值)
+            const match = dataRes.data.match(/var Data_ACWorthTrend = (\[.*?\]);/);
             if (match && match[1]) {
               const data = JSON.parse(match[1]);
               return data
                 .filter((item: any) => {
-                  const itemTime = Math.floor(item.x / 1000);
+                  // item is [timestamp, value]
+                  const itemTime = Math.floor(item[0] / 1000);
                   return itemTime >= startTimestamp && itemTime <= endTimestamp;
                 })
                 .map((item: any) => {
                   // Eastmoney timestamps are UTC+8 00:00:00. Add 8 hours to get the correct UTC date string.
-                  const dateObj = new Date(item.x + 8 * 3600 * 1000);
+                  const dateObj = new Date(item[0] + 8 * 3600 * 1000);
                   return {
                     date: dateObj.toISOString().split('T')[0],
-                    price: item.y
+                    price: item[1]
                   };
                 });
             }
@@ -179,7 +176,7 @@ async function startServer() {
 
           return result.quotes.map((item: any) => ({
             date: item.date.toISOString().split('T')[0],
-            price: item.close
+            price: item.adjclose !== undefined && item.adjclose !== null ? item.adjclose : item.close
           })).filter((d: any) => d.price !== null && d.price !== undefined);
         } catch (error: any) {
           console.error(`Yahoo API Error for ${ticker}:`, error.message, error.cause || '');
