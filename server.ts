@@ -4,6 +4,7 @@ import path from "path";
 import YahooFinance from 'yahoo-finance2';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import dns from 'node:dns';
+import axios from 'axios';
 
 // Force Node.js to use IPv4 first for DNS resolution.
 // This fixes "fetch failed" errors on cloud platforms like Railway that have IPv6 routing issues.
@@ -45,19 +46,45 @@ async function startServer() {
       const { q } = req.query;
       if (!q || typeof q !== 'string') return res.json([]);
       
-      const results = await yahooFinance.search(q, {
-        quotesCount: 10,
-        newsCount: 0
-      });
+      let formattedResults: any[] = [];
       
-      const formattedResults = (results.quotes || [])
-        .filter((q: any) => ['EQUITY', 'INDEX', 'ETF', 'MUTUALFUND', 'CURRENCY', 'CRYPTOCURRENCY'].includes(q.quoteType))
-        .map((q: any) => ({
-          symbol: q.symbol,
-          name: q.shortname || q.longname || q.symbol,
-          type: q.quoteType,
-          exchange: q.exchange
-        }));
+      try {
+        const results = await yahooFinance.search(q, {
+          quotesCount: 10,
+          newsCount: 0
+        });
+        
+        formattedResults = (results.quotes || [])
+          .filter((q: any) => ['EQUITY', 'INDEX', 'ETF', 'MUTUALFUND', 'CURRENCY', 'CRYPTOCURRENCY'].includes(q.quoteType))
+          .map((q: any) => ({
+            symbol: q.symbol,
+            name: q.shortname || q.longname || q.symbol,
+            type: q.quoteType,
+            exchange: q.exchange
+          }));
+      } catch (error: any) {
+        console.error("Yahoo search error:", error.message);
+      }
+
+      // Search Eastmoney for Chinese mutual funds
+      try {
+        const emUrl = `http://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?m=1&key=${encodeURIComponent(q)}`;
+        const emRes = await axios.get(emUrl);
+        if (emRes.data && emRes.data.Datas) {
+          const emResults = emRes.data.Datas
+            .filter((item: any) => item.CATEGORYDESC === '基金' || item.CATEGORY === 700)
+            .slice(0, 5)
+            .map((item: any) => ({
+              symbol: `F_${item.CODE}`,
+              name: item.NAME,
+              type: 'CN_FUND',
+              exchange: 'Eastmoney'
+            }));
+          formattedResults = [...formattedResults, ...emResults];
+        }
+      } catch (error: any) {
+        console.error("Eastmoney search error:", error.message);
+      }
         
       res.json(formattedResults);
     } catch (error: any) {
@@ -110,6 +137,35 @@ async function startServer() {
       }
 
       const fetchYahooData = async (ticker: string) => {
+        if (ticker.startsWith('F_')) {
+          const code = ticker.replace('F_', '');
+          try {
+            const dataUrl = `http://fund.eastmoney.com/pingzhongdata/${code}.js`;
+            const dataRes = await axios.get(dataUrl);
+            const match = dataRes.data.match(/var Data_netWorthTrend = (\[.*?\]);/);
+            if (match && match[1]) {
+              const data = JSON.parse(match[1]);
+              return data
+                .filter((item: any) => {
+                  const itemTime = Math.floor(item.x / 1000);
+                  return itemTime >= startTimestamp && itemTime <= endTimestamp;
+                })
+                .map((item: any) => {
+                  // Eastmoney timestamps are UTC+8 00:00:00. Add 8 hours to get the correct UTC date string.
+                  const dateObj = new Date(item.x + 8 * 3600 * 1000);
+                  return {
+                    date: dateObj.toISOString().split('T')[0],
+                    price: item.y
+                  };
+                });
+            }
+            return [];
+          } catch (error: any) {
+             console.error(`Eastmoney API Error for ${ticker}:`, error.message);
+             throw error;
+          }
+        }
+
         try {
           const queryOptions = {
             period1: new Date(startTimestamp * 1000),

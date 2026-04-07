@@ -224,7 +224,7 @@ export default function App() {
                       <input
                         type="text"
                         autoFocus
-                        placeholder="输入名称或代码 (如 AAPL, 茅台)..."
+                        placeholder="输入名称、代码或拼音首字母 (如 AAPL, 茅台, 易方达)..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full focus:outline-none text-sm"
