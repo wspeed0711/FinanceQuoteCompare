@@ -6,6 +6,37 @@ import dns from 'node:dns';
 import axios from 'axios';
 import { setGlobalDispatcher, EnvHttpProxyAgent } from 'undici';
 
+let cachedFunds: any[] = [];
+let lastFundFetchTime = 0;
+
+async function getEastmoneyFunds() {
+  const now = Date.now();
+  // Cache for 24 hours
+  if (cachedFunds.length > 0 && now - lastFundFetchTime < 24 * 60 * 60 * 1000) {
+    return cachedFunds;
+  }
+  try {
+    const url = 'http://fund.eastmoney.com/js/fundcode_search.js';
+    const res = await axios.get(url);
+    const match = res.data.match(/var r = (\[.*\]);/);
+    if (match && match[1]) {
+      const funds = JSON.parse(match[1]);
+      cachedFunds = funds.map((f: any) => ({
+        code: f[0],
+        pinyin: f[1],
+        name: f[2],
+        type: f[3],
+        pinyinFull: f[4]
+      }));
+      lastFundFetchTime = now;
+      return cachedFunds;
+    }
+  } catch (error) {
+    console.error("Failed to fetch Eastmoney fund list:", error);
+  }
+  return cachedFunds;
+}
+
 // Force Node.js to use IPv4 first for DNS resolution.
 // This fixes "fetch failed" errors on cloud platforms like Railway that have IPv6 routing issues.
 dns.setDefaultResultOrder('ipv4first');
@@ -63,20 +94,43 @@ async function startServer() {
 
       // Search Eastmoney for Chinese mutual funds
       try {
-        const emUrl = `http://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?m=1&key=${encodeURIComponent(q)}`;
-        const emRes = await axios.get(emUrl);
-        if (emRes.data && emRes.data.Datas) {
-          const emResults = emRes.data.Datas
-            .filter((item: any) => item.CATEGORYDESC === '基金' || item.CATEGORY === 700)
-            .slice(0, 5)
-            .map((item: any) => ({
-              symbol: `F_${item.CODE}`,
-              name: item.NAME,
-              type: 'CN_FUND',
-              exchange: 'Eastmoney'
-            }));
-          formattedResults = [...formattedResults, ...emResults];
-        }
+        const funds = await getEastmoneyFunds();
+        const lowerQ = q.toLowerCase().trim();
+        
+        // Split query into terms (by space)
+        const terms = lowerQ.split(/\s+/);
+        
+        // Match by code, name, or pinyin
+        const matchedFunds = funds.filter(f => {
+          const codeMatch = f.code.includes(lowerQ);
+          const pinyinMatch = f.pinyin.toLowerCase().includes(lowerQ);
+          
+          // For name, check if all terms are included
+          const nameLower = f.name.toLowerCase();
+          const nameMatch = terms.every(term => nameLower.includes(term));
+          
+          // Also try a slightly fuzzy match for long names if they missed a word like "指数"
+          // e.g., "广发全球医疗保健人民币" -> check if "广发全球医疗保健" and "人民币" are both in the name
+          let fuzzyNameMatch = false;
+          if (lowerQ.length > 6 && !nameMatch) {
+            const part1 = lowerQ.substring(0, 4);
+            const part2 = lowerQ.substring(lowerQ.length - 3);
+            if (nameLower.includes(part1) && nameLower.includes(part2)) {
+              fuzzyNameMatch = true;
+            }
+          }
+
+          return codeMatch || pinyinMatch || nameMatch || fuzzyNameMatch;
+        }).slice(0, 10); // Return up to 10 matches
+
+        const emResults = matchedFunds.map(f => ({
+          symbol: `F_${f.code}`,
+          name: f.name,
+          type: 'CN_FUND',
+          exchange: 'Eastmoney'
+        }));
+        
+        formattedResults = [...formattedResults, ...emResults];
       } catch (error: any) {
         console.error("Eastmoney search error:", error.message);
       }
