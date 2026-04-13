@@ -3,6 +3,7 @@
 
 🌟 New Feature: Global Commodities Tracking
 We've expanded our market data coverage to include major global commodities! You can now seamlessly track and compare the performance of precious metals and energy markets directly alongside your favorite stocks, ETFs, and mutual funds.
+<br>
 Key Highlights:
 Expanded Asset Classes: Now supporting Spot Gold (XAU/USD), Spot Silver (XAG/USD), and WTI Crude Oil.
 Robust Data Sourcing: To overcome recent data availability limitations on standard financial APIs (like Yahoo Finance), we've integrated a dedicated data feed from Sina Finance Global Futures, ensuring highly reliable and accurate historical data.
