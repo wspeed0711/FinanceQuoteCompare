@@ -73,6 +73,25 @@ async function startServer() {
       if (!q || typeof q !== 'string') return res.json([]);
       
       let formattedResults: any[] = [];
+      const lowerQ = q.toLowerCase().trim();
+
+      // Custom Commodities (Sina Finance)
+      const customCommodities = [
+        { symbol: 'SINA_XAU', name: '现货黄金 (XAU/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['xau', 'gold', '黄金', 'xau/usd', 'xauusd'] },
+        { symbol: 'SINA_XAG', name: '现货白银 (XAG/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['xag', 'silver', '白银', 'xag/usd', 'xagusd'] },
+        { symbol: 'SINA_CL', name: 'WTI原油 (WTI/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['wti', 'oil', '原油', 'wti/usd', 'wtiusd', 'cl'] }
+      ];
+      
+      const customMatches = customCommodities.filter(c => 
+        c.keywords.some(k => k.includes(lowerQ) || lowerQ.includes(k))
+      ).map(c => ({
+        symbol: c.symbol,
+        name: c.name,
+        type: c.type,
+        exchange: c.exchange
+      }));
+      
+      formattedResults = [...customMatches];
       
       try {
         const results = await yahooFinance.search(q, {
@@ -80,7 +99,7 @@ async function startServer() {
           newsCount: 0
         });
         
-        formattedResults = (results.quotes || [])
+        const yahooResults = (results.quotes || [])
           .filter((q: any) => ['EQUITY', 'INDEX', 'ETF', 'MUTUALFUND', 'CURRENCY', 'CRYPTOCURRENCY'].includes(q.quoteType))
           .map((q: any) => ({
             symbol: q.symbol,
@@ -88,6 +107,8 @@ async function startServer() {
             type: q.quoteType,
             exchange: q.exchange
           }));
+          
+        formattedResults = [...formattedResults, ...yahooResults];
       } catch (error: any) {
         console.error("Yahoo search error:", error.message);
       }
@@ -95,7 +116,6 @@ async function startServer() {
       // Search Eastmoney for Chinese mutual funds
       try {
         const funds = await getEastmoneyFunds();
-        const lowerQ = q.toLowerCase().trim();
         
         // Split query into terms (by space)
         const terms = lowerQ.split(/\s+/);
@@ -186,6 +206,41 @@ async function startServer() {
       }
 
       const fetchYahooData = async (ticker: string) => {
+        if (ticker.startsWith('SINA_')) {
+          const code = ticker.replace('SINA_', '');
+          try {
+            const sinaUrl = `https://stock2.finance.sina.com.cn/futures/api/jsonp.php/var=/GlobalFuturesService.getGlobalFuturesDailyKLine?symbol=${code}`;
+            const sinaRes = await axios.get(sinaUrl, {
+              headers: {
+                'Referer': 'https://finance.sina.com.cn/'
+              }
+            });
+            
+            const match = sinaRes.data.match(/var=\((.*)\)/);
+            if (match && match[1]) {
+              const data = JSON.parse(match[1]);
+              return data
+                .map((item: any) => {
+                  const itemTime = Math.floor(new Date(item.date).getTime() / 1000);
+                  return {
+                    date: item.date,
+                    price: parseFloat(item.close),
+                    timestamp: itemTime
+                  };
+                })
+                .filter((item: any) => item.timestamp >= startTimestamp && item.timestamp <= endTimestamp)
+                .map((item: any) => ({
+                  date: item.date,
+                  price: item.price
+                }));
+            }
+            return [];
+          } catch (error: any) {
+            console.error(`Sina API Error for ${ticker}:`, error.message);
+            throw error;
+          }
+        }
+
         if (ticker.startsWith('F_')) {
           const code = ticker.replace('F_', '');
           try {

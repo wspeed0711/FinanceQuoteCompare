@@ -236,7 +236,10 @@ export default function App() {
                         searchResults.map((res, i) => (
                           <button
                             key={i}
-                            onClick={() => handleAddSymbol(res)}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleAddSymbol(res);
+                            }}
                             disabled={symbols.some(s => s.symbol === res.symbol)}
                             className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex flex-col disabled:opacity-50"
                           >
