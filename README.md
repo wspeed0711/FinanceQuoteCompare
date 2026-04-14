@@ -1,18 +1,12 @@
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-# Compare financial quotes of your selection online
+# Run and deploy your AI Studio app
 
-🌟 New Feature: Global Commodities Tracking
-We've expanded our market data coverage to include major global commodities! You can now seamlessly track and compare the performance of precious metals and energy markets directly alongside your favorite stocks, ETFs, and mutual funds.
-<br>
-Key Highlights:
-<br>
-Expanded Asset Classes: Now supporting Spot Gold (XAU/USD), Spot Silver (XAG/USD), and WTI Crude Oil.
-<br>
-Robust Data Sourcing: To overcome recent data availability limitations on standard financial APIs (like Yahoo Finance), we've integrated a dedicated data feed from Sina Finance Global Futures, ensuring highly reliable and accurate historical data.
-<br>
-Seamless Comparison: Add these commodities to your chart to visualize their relative performance against global indices (like the S&P 500) or specific mutual funds over any custom date range.
-<br>
-Intuitive Search: Simply type keywords like "Gold", "XAU", "Silver", or "WTI" into the search bar to instantly find and add these assets to your chart.
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/33b252b9-4268-48d1-8dea-10ae8c93d273
 
 ## Run Locally
 
@@ -21,5 +15,6 @@ Intuitive Search: Simply type keywords like "Gold", "XAU", "Silver", or "WTI" in
 
 1. Install dependencies:
    `npm install`
-2. Run the app:
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
    `npm run dev`
