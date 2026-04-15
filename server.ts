@@ -39,7 +39,7 @@ async function getEastmoneyFunds() {
 
 // Force Node.js to use IPv4 first for DNS resolution.
 // This fixes "fetch failed" errors on cloud platforms like Railway that have IPv6 routing issues.
-// dns.setDefaultResultOrder('ipv4first');
+dns.setDefaultResultOrder('ipv4first');
 
 // Configure proxy if environment variables are present
 const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy;
