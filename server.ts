@@ -4,7 +4,7 @@ import path from "path";
 import YahooFinance from 'yahoo-finance2';
 import dns from 'node:dns';
 import axios from 'axios';
-import { setGlobalDispatcher, EnvHttpProxyAgent } from 'undici';
+import { setGlobalDispatcher, EnvHttpProxyAgent, Agent } from 'undici';
 
 let cachedFunds: any[] = [];
 let lastFundFetchTime = 0;
@@ -37,7 +37,7 @@ async function getEastmoneyFunds() {
   return cachedFunds;
 }
 
-// Force Node.js to use IPv4 first for DNS resolution.
+// Force Node.js to use IPv4 first for DNS resolution (for axios/node:http).
 // This fixes "fetch failed" errors on cloud platforms like Railway that have IPv6 routing issues.
 dns.setDefaultResultOrder('ipv4first');
 
@@ -52,6 +52,17 @@ if (proxyUrl) {
     console.log("Successfully configured global proxy dispatcher for native fetch.");
   } catch (e) {
     console.error("Failed to setup proxy:", e);
+  }
+} else {
+  // Force IPv4 for undici (native fetch used by yahoo-finance2) when not using a proxy
+  try {
+    const agent = new Agent({
+      connect: { family: 4 }
+    });
+    setGlobalDispatcher(agent);
+    console.log("Successfully configured global dispatcher to force IPv4.");
+  } catch (e) {
+    console.error("Failed to setup IPv4 agent:", e);
   }
 }
 
