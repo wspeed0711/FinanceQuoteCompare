@@ -52,8 +52,14 @@ export default function App() {
     { label: "最近3个月", getDates: () => [format(subMonths(today, 3), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
     { label: "最近6个月", getDates: () => [format(subMonths(today, 6), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
     { label: "最近1年", getDates: () => [format(subYears(today, 1), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
+    { label: "最近2年", getDates: () => [format(subYears(today, 2), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
+    { label: "最近3年", getDates: () => [format(subYears(today, 3), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
+    { label: "最近5年", getDates: () => [format(subYears(today, 5), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
     { label: "今年以来", getDates: () => [format(startOfYear(today), "yyyy-MM-dd"), format(today, "yyyy-MM-dd")] },
   ];
+
+  const currentYear = today.getFullYear();
+  const years = Array.from({ length: currentYear - 2000 + 1 }, (_, i) => currentYear - i);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -264,7 +270,7 @@ export default function App() {
 
           {/* Controls */}
           <div className="flex flex-col lg:flex-row gap-4 mb-8 items-start lg:items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {quickOptions.map((opt) => (
                 <button
                   key={opt.label}
@@ -278,6 +284,24 @@ export default function App() {
                   {opt.label}
                 </button>
               ))}
+              <select
+                onChange={(e) => {
+                  const year = parseInt(e.target.value);
+                  if (!isNaN(year)) {
+                    const start = `${year}-01-01`;
+                    const end = year === currentYear ? format(today, "yyyy-MM-dd") : `${year}-12-31`;
+                    setStartDate(start);
+                    setEndDate(end);
+                  }
+                }}
+                className="px-3 py-2 text-sm font-medium bg-white border border-slate-200 hover:border-blue-300 text-slate-600 rounded-lg transition-all shadow-sm focus:outline-none cursor-pointer"
+                value=""
+              >
+                <option value="" disabled>按年份选择</option>
+                {years.map(year => (
+                  <option key={year} value={year}>{year}年</option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
               <Calendar className="w-4 h-4 text-slate-400 ml-2" />
