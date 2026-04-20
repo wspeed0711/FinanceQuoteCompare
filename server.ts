@@ -218,6 +218,53 @@ async function startServer() {
       }
 
       const fetchYahooData = async (ticker: string) => {
+        // Intercept specific Chinese indices that have missing history on Yahoo
+        let useSinaIndex = false;
+        let sinaIndexCode = "";
+        
+        if (ticker === '000300.SS') {
+          useSinaIndex = true;
+          sinaIndexCode = "sh000300";
+        } else if (ticker === '000001.SS') {
+          useSinaIndex = true;
+          sinaIndexCode = "sh000001";
+        } else if (ticker === '399001.SZ') {
+          useSinaIndex = true;
+          sinaIndexCode = "sz399001";
+        } else if (ticker === '399006.SZ') {
+          useSinaIndex = true;
+          sinaIndexCode = "sz399006";
+        }
+
+        if (useSinaIndex) {
+          try {
+            const sinaUrl = `http://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=${sinaIndexCode}&scale=240&ma=no&datalen=10000`;
+            const sinaRes = await axios.get(sinaUrl);
+            
+            if (Array.isArray(sinaRes.data)) {
+              return sinaRes.data
+                .map((item: any) => {
+                  const itemTime = Math.floor(new Date(item.day).getTime() / 1000);
+                  return {
+                    date: item.day,
+                    price: parseFloat(item.close),
+                    timestamp: itemTime
+                  };
+                })
+                .filter((item: any) => item.timestamp >= startTimestamp && item.timestamp <= endTimestamp)
+                .map((item: any) => ({
+                  date: item.date,
+                  price: item.price
+                }));
+            }
+            return [];
+          } catch (error: any) {
+            console.error(`Sina Index API Error for ${ticker}:`, error.message);
+            // Fallback to Yahoo if Sina fails
+            console.log(`Falling back to Yahoo API for ${ticker}`);
+          }
+        }
+
         if (ticker.startsWith('SINA_')) {
           const code = ticker.replace('SINA_', '');
           try {
@@ -300,6 +347,9 @@ async function startServer() {
             price: item.adjclose !== undefined && item.adjclose !== null ? item.adjclose : item.close
           })).filter((d: any) => d.price !== null && d.price !== undefined);
         } catch (error: any) {
+          if (error.message && error.message.includes("Data doesn't exist")) {
+            return []; // Gracefully handle periods without data
+          }
           console.error(`Yahoo API Error for ${ticker}:`, error.message, error.cause || '');
           throw error;
         }
