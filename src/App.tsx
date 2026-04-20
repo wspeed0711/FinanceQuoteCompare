@@ -269,8 +269,8 @@ export default function App() {
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col lg:flex-row gap-4 mb-8 items-start lg:items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-col lg:flex-row gap-4 mb-8 items-start justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div className="flex flex-wrap gap-2 items-start">
               {quickOptions.map((opt) => (
                 <button
                   key={opt.label}
@@ -303,14 +303,14 @@ export default function App() {
                 ))}
               </select>
             </div>
-            <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
-              <Calendar className="w-4 h-4 text-slate-400 ml-2" />
+            <div className="flex items-center gap-2 px-3 h-[38px] bg-white rounded-lg border border-slate-200 shadow-sm">
+              <Calendar className="w-4 h-4 text-slate-400" />
               <input
                 type="date"
                 value={startDate}
                 max={endDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-2 py-1 text-sm text-slate-700 focus:outline-none bg-transparent cursor-pointer"
+                className="text-sm text-slate-700 focus:outline-none bg-transparent cursor-pointer bg-white"
               />
               <span className="text-slate-300">至</span>
               <input
@@ -319,7 +319,7 @@ export default function App() {
                 min={startDate}
                 max={format(today, "yyyy-MM-dd")}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-2 py-1 text-sm text-slate-700 focus:outline-none bg-transparent cursor-pointer"
+                className="text-sm text-slate-700 focus:outline-none bg-transparent cursor-pointer bg-white"
               />
             </div>
           </div>

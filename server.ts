@@ -86,14 +86,15 @@ async function startServer() {
       let formattedResults: any[] = [];
       const lowerQ = q.toLowerCase().trim();
 
-      // Custom Commodities (Sina Finance)
-      const customCommodities = [
+      // Custom Assets (Sina Finance & Yahoo Finance overrides)
+      const customAssets = [
         { symbol: 'SINA_XAU', name: '现货黄金 (XAU/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['xau', 'gold', '黄金', 'xau/usd', 'xauusd'] },
         { symbol: 'SINA_XAG', name: '现货白银 (XAG/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['xag', 'silver', '白银', 'xag/usd', 'xagusd'] },
-        { symbol: 'SINA_CL', name: 'WTI原油 (WTI/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['wti', 'oil', '原油', 'wti/usd', 'wtiusd', 'cl'] }
+        { symbol: 'SINA_CL', name: 'WTI原油 (WTI/USD)', type: 'COMMODITY', exchange: 'Sina', keywords: ['wti', 'oil', '原油', 'wti/usd', 'wtiusd', 'cl'] },
+        { symbol: 'DX-Y.NYB', name: '美元指数 (USD Index)', type: 'INDEX', exchange: 'NYB', keywords: ['dxy', 'usdidx', '美元指数', 'usd index', 'dx-y.nyb', '美元'] }
       ];
       
-      const customMatches = customCommodities.filter(c => 
+      const customMatches = customAssets.filter(c => 
         c.keywords.some(k => k.includes(lowerQ) || lowerQ.includes(k))
       ).map(c => ({
         symbol: c.symbol,
