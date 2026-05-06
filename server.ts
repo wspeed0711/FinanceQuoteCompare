@@ -106,10 +106,67 @@ async function startServer() {
       formattedResults = [...customMatches];
       
       try {
-        const results = await yahooFinance.search(q, {
+        let results = await yahooFinance.search(q, {
           quotesCount: 10,
           newsCount: 0
         });
+
+        // ISIN Heuristic
+        const isinRegex = /^[A-Za-z]{2}[A-Za-z0-9]{9}[0-9]$/;
+        const isISIN = isinRegex.test(q.trim().toUpperCase());
+
+        if (isISIN && results.quotes && results.quotes.length === 0) {
+           // Fallback for ISINs that Yahoo misses (e.g., LU0056508442) using FT Search API 
+           try {
+              const ftUrl = `https://markets.ft.com/data/searchapi/searchsecurities?query=${q}`;
+              const ftRes = await axios.get(ftUrl);
+              const ftSecurity = ftRes.data?.data?.security;
+              
+              if (ftSecurity && ftSecurity.length > 0) {
+                 const bestMatch = ftSecurity[0];
+                 const nameObj = bestMatch.name;
+                 console.log("FT API matched ISIN to:", nameObj);
+                 
+                 if (nameObj) {
+                    let parts = nameObj.split('-');
+                    // For "BlackRock Global Funds - World Technology Fund A2"
+                    // we want to extract "World Technology" by removing the end class codes
+                    let coreName = parts[parts.length - 1].replace(/(Fund|Fd|\bA2\b|\bA\b|\bI\b|\bAcc\b|\bInc\b|\bUSD\b|\bEUR\b|\bGBP\b)/ig, '').trim();
+                    if (coreName.length > 3) {
+                       const ftFallbackResults = await yahooFinance.search(coreName, { quotesCount: 15, newsCount: 0 });
+                       if (ftFallbackResults.quotes && ftFallbackResults.quotes.length > 0) {
+                           results.quotes = ftFallbackResults.quotes;
+                       }
+                    }
+                 }
+              }
+           } catch (e) {
+              console.error("FT ISIN fallback failed", e);
+           }
+        }
+
+        if (isISIN && results.quotes && results.quotes.length > 0) {
+          const firstHit = results.quotes[0];
+          const nameObj = firstHit.longname || firstHit.shortname;
+          if (nameObj) {
+            let parts = nameObj.split('-');
+            let coreName = parts[parts.length - 1].replace(/(Fund|Fd|\bA\b|\bI\b|\bAcc\b|\bInc\b)/ig, '').trim();
+            if (coreName.length > 5) {
+              try {
+                const secondResults = await yahooFinance.search(coreName, {
+                  quotesCount: 10,
+                  newsCount: 0
+                });
+                const mfResults = (secondResults.quotes || []).filter((item: any) => item.quoteType === 'MUTUALFUND');
+                const existingSymbols = new Set(results.quotes.map((q: any) => q.symbol));
+                const newMfs = mfResults.filter((mf: any) => !existingSymbols.has(mf.symbol));
+                results.quotes = [...newMfs, ...results.quotes];
+              } catch (err) {
+                 console.log("ISIN secondary search failed", err);
+              }
+            }
+          }
+        }
         
         const yahooResults = (results.quotes || [])
           .filter((q: any) => ['EQUITY', 'INDEX', 'ETF', 'MUTUALFUND', 'CURRENCY', 'CRYPTOCURRENCY'].includes(q.quoteType))
